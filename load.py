@@ -172,11 +172,12 @@ def edsm_worker(systemName, id64_dec):
             r_test.raise_for_status()
             edsm_test = r_test.json()
             #if 'name' in edsm_system:
-                #print(i, "   ", edsm_system['name'])
+            #print(i, "   ", namesector+" "+posID+"-"+str(i))
             #else:
             if not 'name' in edsm_test:
                 #print(i, "UNK", namesector+" "+posID+"-"+str(i))
                 #print(namesector+" "+posID+"-"+str(i))
+                this.edsm_testsystem.append(namesector+" "+posID+"-"+str(i))
                 this.edsm_nextsystem.append(namesector+" "+posID+"-"+str(i))
                 break
             
@@ -327,7 +328,7 @@ def copy_to_clipboard(event):
     this.inext += 1
     if this.inext >= len(this.edsm_nextsystem):
         this.inext=0
-    this.edsmnext_label['text'] = 'Next System: ['+str(this.inext+1)+'/'+str(len(this.edsm_nextsystem))+']'
+    this.edsmnext_label['text'] = 'Next NoEDSM: ['+str(this.inext+1)+'/'+str(len(this.edsm_nextsystem))+']'
     this.edsmnext['text'] = this.edsm_nextsystem[this.inext]
     this.edsmnext['url'] = this.edsm_nextsystem[this.inext]
 
@@ -341,7 +342,7 @@ def NMScopy_to_clipboard(event):
     this.iNMSnext += 1
     if this.iNMSnext >= len(this.edsm_nextNMSsystem):
         this.iNMSnext=0
-    this.edsmNMSnext_label['text'] = 'Next NMS System: ['+str(this.iNMSnext+1)+'/'+str(len(this.edsm_nextNMSsystem))+']'
+    this.edsmNMSnext_label['text'] = 'Next NoMainStar: ['+str(this.iNMSnext+1)+'/'+str(len(this.edsm_nextNMSsystem))+']'
     this.edsmNMSnext['text'] = this.edsm_nextNMSsystem[this.iNMSnext]
     this.edsmNMSnext['url'] = this.edsm_nextNMSsystem[this.iNMSnext]
     
