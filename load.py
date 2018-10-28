@@ -158,7 +158,7 @@ def edsm_worker(systemName, id64_dec):
             #print(namesector,posID,i)
             newid64 = str(bodyId)+str(newn2)+str(xsector)+str(xcoord)+str(ysector)+str(ycoord)+str(zsector)+str(zcoord)+str(bit_MCode)
             newid64 = int(newid64, 2)
-            r_test = this.edsm_session.get('https://www.edsm.net/api-v1/system?systemId64=%s&showId=1' % newid64, timeout=10)
+            r_test = this.edsm_session.get('https://www.edsm.net/api-v1/system?systemId64=%s&showId=1' % newid64, timeout=20)
             r_test.raise_for_status()
             edsm_test = r_test.json()
             #if 'name' in edsm_system:
@@ -174,18 +174,28 @@ def edsm_worker(systemName, id64_dec):
         #print(this.edsm_nextsystem)
 
         minradius = 0
-        radius = 10
+        stepradius = 10
+        radius = 20
         findradius = False
         
         for rmax in range(4):
-            #print(radius)
-            r_sphere = this.edsm_session.get('https://www.edsm.net/api-v1/sphere-systems?systemName=%s&minRadius=%s&radius=%s&showId=1' % (urllib2.quote(systemName),urllib2.quote(str(minradius)),urllib2.quote(str(radius))), timeout=20)
+            #print("radius=",radius)
+            r_sphere = this.edsm_session.get('https://www.edsm.net/api-v1/sphere-systems?systemName=%s&minRadius=%s&radius=%s&showId=1&showPrimaryStar=1' % (urllib2.quote(systemName),urllib2.quote(str(minradius)),urllib2.quote(str(radius))), timeout=40)
             r_sphere.raise_for_status()
             edsm_sphere = r_sphere.json()
             minradius = radius
-            radius *= 2
+            radius += stepradius
+
+            for edsm_system in edsm_sphere:
+                if(edsm_system['primaryStar'] is None and edsm_system['distance']!=0):
+                    if not edsm_system['name'] in this.edsm_nextsystem:
+                        findradius = True
+                        this.edsm_nextsystem.append(edsm_system['name'])
+                        #print("EDSM :",edsm_system['name'])
+                        this.frame.event_generate('<<NextData>>', when='tail')
             
             for k in range(8):
+                #print("k=",k)
                 
                 find = False
                 for edsm_system in edsm_sphere:
@@ -202,8 +212,8 @@ def edsm_worker(systemName, id64_dec):
                         #print(MCode)
                         #print(namesector,posID,n2)
                         
-                        for i in range(1,n2+1):
-                            newn2 = ("{0:0%sb}" % len(str(bit_n2))).format(n2-i)
+                        for i in range(0,n2):
+                            newn2 = ("{0:0%sb}" % len(str(bit_n2))).format(i)
                             #print(namesector,posID,n2-i)
                             newid64 = str(bodyId)+str(newn2)+str(xsector)+str(xcoord)+str(ysector)+str(ycoord)+str(zsector)+str(zcoord)+str(bit_MCode)
                             newid64 = int(newid64, 2)
@@ -215,21 +225,23 @@ def edsm_worker(systemName, id64_dec):
                             #print(edsm_test)
                             if not 'name' in edsm_test:
                                 #print(i, "UNK", namesector+" "+posID+"-"+str(i))
-                                if not namesector+" "+posID+"-"+str(n2-i) in this.edsm_nextsystem:
+                                if not namesector+" "+posID+"-"+str(i) in this.edsm_nextsystem:
                                     find = True
                                     findradius = True
-                                    this.edsm_nextsystem.append(namesector+" "+posID+"-"+str(n2-i))
-                                    break
+                                    this.edsm_nextsystem.append(namesector+" "+posID+"-"+str(i))
+                                    #print(namesector+" "+posID+"-"+str(i))
+                                    this.frame.event_generate('<<NextData>>', when='tail')
+                                    #break
                             
-                        if find:
-                            break
+                        #if find:
+                        #    break
             if findradius:
                 break
         #print(this.edsm_nextsystem)
 
         # Tk is not thread-safe, so can't access widgets in this thread.
         # event_generate() is the only safe way to poke the main thread from this thread.
-        this.frame.event_generate('<<NextData>>', when='tail')
+        #this.frame.event_generate('<<NextData>>', when='tail')
 
 
 # EDSM data received
