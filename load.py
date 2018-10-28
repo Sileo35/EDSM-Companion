@@ -29,6 +29,7 @@ this.edsm_data = None
 
 this.inext = 0
 this.edsm_nextsystem = []
+this.edsm_testsystem = []
 this.iNMSnext = 0
 this.edsm_nextNMSsystem = []
 this.maxbodyId = 0
@@ -114,6 +115,7 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
     if entry['event'] in ['Location', 'FSDJump', 'StartUp']:
         this.inext = 0
         this.edsm_nextsystem = []
+        this.edsm_testsystem = []
         this.iNMSnext = 0
         this.edsm_nextNMSsystem = []
         this.maxbodyId = 0
@@ -217,10 +219,18 @@ def edsm_worker(systemName, id64_dec):
                     if k==MCode:
                         namesector,posID,n2 = id64toName(bodyId,bit_n2,xsector,xcoord,ysector,ycoord,zsector,zcoord,bit_MCode)
 
+                        #if(not namesector+" "+posID in this.edsm_testsystem):
+                        #    this.edsm_testsystem.append(namesector+" "+posID)
+                        #else:
+                        #    continue
                         #print(MCode)
                         #print(namesector,posID,n2)
                         
                         for i in range(0,n2):
+                            if(not namesector+" "+posID+"-"+str(i) in this.edsm_testsystem):
+                                this.edsm_testsystem.append(namesector+" "+posID+"-"+str(i))
+                            else:
+                                continue
                             newn2 = ("{0:0%sb}" % len(str(bit_n2))).format(i)
                             #print(namesector,posID,n2-i)
                             newid64 = str(bodyId)+str(newn2)+str(xsector)+str(xcoord)+str(ysector)+str(ycoord)+str(zsector)+str(zcoord)+str(bit_MCode)
