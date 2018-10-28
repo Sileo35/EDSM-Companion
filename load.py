@@ -29,6 +29,8 @@ this.edsm_data = None
 
 this.inext = 0
 this.edsm_nextsystem = []
+this.iNMSnext = 0
+this.edsm_nextNMSsystem = []
 this.maxbodyId = 0
 this.bodies = defaultdict(list)
 this.nbodies_null = []
@@ -49,11 +51,15 @@ def plugin_app(parent):
     this.frame.columnconfigure(3, weight=1)
     this.frame.bind('<<EDSMData>>', edsm_data)	# callback when EDSM data received
     this.frame.bind('<<NextData>>', next_data)	# callback when EDSM data received
+    this.frame.bind('<<NextNMSData>>', next_NMSdata)	# callback when EDSM data received
     this.edsm_label = tk.Label(this.frame, text = 'Body Scanned:')
     this.edsm = tk.Label(this.frame)
-    this.edsmnext_label = tk.Label(this.frame, text = 'Next System: [0]')
+    this.edsmnext_label = tk.Label(this.frame, text = 'Next NoEDSM: [0]')
     this.edsmnext = HyperlinkLabel(this.frame)
     this.edsmnext.bind("<Button-1>", copy_to_clipboard)
+    this.edsmNMSnext_label = tk.Label(this.frame, text = 'Next NoMainStar: [0]')
+    this.edsmNMSnext = HyperlinkLabel(this.frame)
+    this.edsmNMSnext.bind("<Button-1>", NMScopy_to_clipboard)
     this.spacer = tk.Frame(this.frame)	# Main frame can't be empty or it doesn't resize
     update_visibility()
     return this.frame
@@ -108,6 +114,8 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
     if entry['event'] in ['Location', 'FSDJump', 'StartUp']:
         this.inext = 0
         this.edsm_nextsystem = []
+        this.iNMSnext = 0
+        this.edsm_nextNMSsystem = []
         this.maxbodyId = 0
         this.bodies = defaultdict(list)
         this.nbodies_null = []
@@ -137,7 +145,7 @@ def edsm_worker(systemName, id64_dec):
         this.edsm_session = requests.Session()
 
     try:
-        r = this.edsm_session.get('https://www.edsm.net/api-system-v1/bodies?systemName=%s' % urllib2.quote(systemName), timeout=10)
+        r = this.edsm_session.get('https://www.edsm.net/api-system-v1/bodies?systemName=%s' % urllib2.quote(systemName), timeout=20)
         r.raise_for_status()
         this.edsm_data = r.json()
     except:
@@ -188,11 +196,11 @@ def edsm_worker(systemName, id64_dec):
 
             for edsm_system in edsm_sphere:
                 if(edsm_system['primaryStar'] is None and edsm_system['distance']!=0):
-                    if not edsm_system['name'] in this.edsm_nextsystem:
+                    if not edsm_system['name'] in this.edsm_nextNMSsystem:
                         findradius = True
-                        this.edsm_nextsystem.append(edsm_system['name'])
+                        this.edsm_nextNMSsystem.append(edsm_system['name'])
                         #print("EDSM :",edsm_system['name'])
-                        this.frame.event_generate('<<NextData>>', when='tail')
+                        this.frame.event_generate('<<NextNMSData>>', when='tail')
             
             for k in range(8):
                 #print("k=",k)
@@ -277,14 +285,23 @@ def edsm_data(event):
 
 def next_data(event):
     #print(this.edsm_nextsystem)
-    this.edsmnext_label['text'] = 'Next System: ['+str(this.inext+1)+'/'+str(len(this.edsm_nextsystem))+']'
+    this.edsmnext_label['text'] = 'Next NoEDSM: ['+str(this.inext+1)+'/'+str(len(this.edsm_nextsystem))+']'
     this.edsmnext['text'] = this.edsm_nextsystem[this.inext]
     this.edsmnext['url'] = this.edsm_nextsystem[this.inext]
+
+def next_NMSdata(event):
+    #print(this.edsm_nextsystem)
+    this.edsmNMSnext_label['text'] = 'Next NoMainStar: ['+str(this.iNMSnext+1)+'/'+str(len(this.edsm_nextNMSsystem))+']'
+    this.edsmNMSnext['text'] = this.edsm_nextNMSsystem[this.iNMSnext]
+    this.edsmNMSnext['url'] = this.edsm_nextNMSsystem[this.iNMSnext]
 
 def update_visibility():
     row = 1
     this.edsm_label.grid(row = row, column = 0, sticky=tk.W)
     this.edsm.grid(row = row, column = 1, columnspan=5, sticky=tk.W)
+    row += 1
+    this.edsmNMSnext_label.grid(row = row, column = 0, sticky=tk.W)
+    this.edsmNMSnext.grid(row = row, column = 1, columnspan=5, sticky=tk.W)
     row += 1
     this.edsmnext_label.grid(row = row, column = 0, sticky=tk.W)
     this.edsmnext.grid(row = row, column = 1, columnspan=5, sticky=tk.W)
@@ -303,6 +320,20 @@ def copy_to_clipboard(event):
     this.edsmnext_label['text'] = 'Next System: ['+str(this.inext+1)+'/'+str(len(this.edsm_nextsystem))+']'
     this.edsmnext['text'] = this.edsm_nextsystem[this.inext]
     this.edsmnext['url'] = this.edsm_nextsystem[this.inext]
+
+def NMScopy_to_clipboard(event):
+    window=tk.Tk()
+    window.withdraw()
+    window.clipboard_clear()  # clear clipboard contents
+    window.clipboard_append(this.edsm_nextNMSsystem[this.iNMSnext])
+    window.destroy()
+
+    this.iNMSnext += 1
+    if this.iNMSnext >= len(this.edsm_nextNMSsystem):
+        this.iNMSnext=0
+    this.edsmNMSnext_label['text'] = 'Next NMS System: ['+str(this.iNMSnext+1)+'/'+str(len(this.edsm_nextNMSsystem))+']'
+    this.edsmNMSnext['text'] = this.edsm_nextNMSsystem[this.iNMSnext]
+    this.edsmNMSnext['url'] = this.edsm_nextNMSsystem[this.iNMSnext]
     
 def id64_splitbin(id64):
 
