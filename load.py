@@ -155,6 +155,16 @@ def edsm_worker(systemName, id64_dec):
 
     this.frame.event_generate('<<EDSMData>>', when='tail')
 
+
+    #bodyId,bit_n2,xsector,xcoord,ysector,ycoord,zsector,zcoord,bit_MCode = id64_splitbin("{0:064b}".format(1831560284547))
+    #print('test=',bodyId,bit_n2,xsector,xcoord,ysector,ycoord,zsector,zcoord,bit_MCode)
+    #bodyId,bit_n2,xsector,xcoord,ysector,ycoord,zsector,zcoord,bit_MCode = id64_splitbin("{0:064b}".format(3858784848259))
+    #print('test=',bodyId,bit_n2,xsector,xcoord,ysector,ycoord,zsector,zcoord,bit_MCode)
+    #bodyId,bit_n2,xsector,xcoord,ysector,ycoord,zsector,zcoord,bit_MCode = id64_splitbin("{0:064b}".format(36030628579248510))
+    #print('test=',bodyId,bit_n2,xsector,xcoord,ysector,ycoord,zsector,zcoord,bit_MCode)
+    #bodyId,bit_n2,xsector,xcoord,ysector,ycoord,zsector,zcoord,bit_MCode = id64_splitbin("{0:064b}".format(72059425598212480))
+    #print('test=',bodyId,bit_n2,xsector,xcoord,ysector,ycoord,zsector,zcoord,bit_MCode)
+    
     if id64_dec is not None:
         id64 = "{0:064b}".format(id64_dec)
         bodyId,bit_n2,xsector,xcoord,ysector,ycoord,zsector,zcoord,bit_MCode = id64_splitbin(id64)
@@ -165,6 +175,10 @@ def edsm_worker(systemName, id64_dec):
         
         for i in range(200):
             newn2 = ("{0:0%sb}" % len(str(bit_n2))).format(i)
+            if(n2==i):
+                #print(namesector+" "+posID+"-"+str(i))
+                this.edsm_testsystem.append(namesector+" "+posID+"-"+str(i))
+                continue
             #print(namesector,posID,i)
             newid64 = str(bodyId)+str(newn2)+str(xsector)+str(xcoord)+str(ysector)+str(ycoord)+str(zsector)+str(zcoord)+str(bit_MCode)
             newid64 = int(newid64, 2)
@@ -179,6 +193,7 @@ def edsm_worker(systemName, id64_dec):
                 #print(namesector+" "+posID+"-"+str(i))
                 this.edsm_testsystem.append(namesector+" "+posID+"-"+str(i))
                 this.edsm_nextsystem.append(namesector+" "+posID+"-"+str(i))
+                print('NoEDSM : %s - %s - %s' % (len(this.edsm_nextsystem),newid64, namesector+" "+posID+"-"+str(i)))
                 break
             
         this.frame.event_generate('<<NextData>>', when='tail')
@@ -188,6 +203,7 @@ def edsm_worker(systemName, id64_dec):
         stepradius = 10
         radius = 20
         findradius = False
+        findNMSradius = False
         
         for rmax in range(4):
             #print("radius=",radius)
@@ -197,64 +213,67 @@ def edsm_worker(systemName, id64_dec):
             minradius = radius
             radius += stepradius
 
-            for edsm_system in edsm_sphere:
-                if(edsm_system['primaryStar'] is None and edsm_system['distance']!=0):
-                    if not edsm_system['name'] in this.edsm_nextNMSsystem:
-                        findradius = True
-                        this.edsm_nextNMSsystem.append(edsm_system['name'])
-                        #print("EDSM :",edsm_system['name'])
-                        this.frame.event_generate('<<NextNMSData>>', when='tail')
-            
-            for k in range(8):
-                #print("k=",k)
-                
-                find = False
+            if not findNMSradius:
                 for edsm_system in edsm_sphere:
+                    if(edsm_system['primaryStar'] is None and edsm_system['distance']!=0 and edsm_system['name']!=systemName):
+                        if not edsm_system['name'] in this.edsm_nextNMSsystem:
+                            findNMSradius = True
+                            this.edsm_nextNMSsystem.append(edsm_system['name'])
+                            #print("EDSM :",edsm_system['name'])
+                            print('NoMainStar : %s - %s' % (len(this.edsm_nextNMSsystem), edsm_system['name']))
+                            this.frame.event_generate('<<NextNMSData>>', when='tail')
 
-                    id64 = "{0:064b}".format(edsm_system['id64'])
-                    bodyId,bit_n2,xsector,xcoord,ysector,ycoord,zsector,zcoord,bit_MCode = id64_splitbin(id64)
-                    MCode = int(bit_MCode, 2)
+            if not findradius:
+                for k in range(8):
+                    #print("k=",k)
                     
-                    #print(MCode,edsm_system['name'])
-                    
-                    if k==MCode:
-                        namesector,posID,n2 = id64toName(bodyId,bit_n2,xsector,xcoord,ysector,ycoord,zsector,zcoord,bit_MCode)
+                    find = False
+                    for edsm_system in edsm_sphere:
 
-                        #if(not namesector+" "+posID in this.edsm_testsystem):
-                        #    this.edsm_testsystem.append(namesector+" "+posID)
-                        #else:
-                        #    continue
-                        #print(MCode)
-                        #print(namesector,posID,n2)
+                        id64 = "{0:064b}".format(edsm_system['id64'])
+                        bodyId,bit_n2,xsector,xcoord,ysector,ycoord,zsector,zcoord,bit_MCode = id64_splitbin(id64)
+                        MCode = int(bit_MCode, 2)
                         
-                        for i in range(0,n2):
-                            if(not namesector+" "+posID+"-"+str(i) in this.edsm_testsystem):
-                                this.edsm_testsystem.append(namesector+" "+posID+"-"+str(i))
-                            else:
-                                continue
-                            newn2 = ("{0:0%sb}" % len(str(bit_n2))).format(i)
-                            #print(namesector,posID,n2-i)
-                            newid64 = str(bodyId)+str(newn2)+str(xsector)+str(xcoord)+str(ysector)+str(ycoord)+str(zsector)+str(zcoord)+str(bit_MCode)
-                            newid64 = int(newid64, 2)
-                            r_test = this.edsm_session.get('https://www.edsm.net/api-v1/system?systemId64=%s&showId=1' % newid64, timeout=10)
-                            r_test.raise_for_status()
-                            edsm_test = r_test.json()
+                        #print(MCode,edsm_system['name'])
+                        
+                        if k==MCode:
+                            namesector,posID,n2 = id64toName(bodyId,bit_n2,xsector,xcoord,ysector,ycoord,zsector,zcoord,bit_MCode)
 
-                            #print(namesector+" "+posID+"-"+str(n2-i))
-                            #print(edsm_test)
-                            if not 'name' in edsm_test:
-                                #print(i, "UNK", namesector+" "+posID+"-"+str(i))
-                                if not namesector+" "+posID+"-"+str(i) in this.edsm_nextsystem:
-                                    find = True
-                                    findradius = True
-                                    this.edsm_nextsystem.append(namesector+" "+posID+"-"+str(i))
-                                    #print(namesector+" "+posID+"-"+str(i))
-                                    this.frame.event_generate('<<NextData>>', when='tail')
-                                    #break
+                            #if(not namesector+" "+posID in this.edsm_testsystem):
+                            #    this.edsm_testsystem.append(namesector+" "+posID)
+                            #else:
+                            #    continue
+                            #print(MCode)
+                            #print(namesector,posID,n2)
                             
-                        #if find:
-                        #    break
-            if findradius:
+                            for i in range(0,n2):
+                                if(not namesector+" "+posID+"-"+str(i) in this.edsm_testsystem):
+                                    this.edsm_testsystem.append(namesector+" "+posID+"-"+str(i))
+                                else:
+                                    continue
+                                newn2 = ("{0:0%sb}" % len(str(bit_n2))).format(i)
+                                #print(namesector,posID,n2-i)
+                                newid64 = str(bodyId)+str(newn2)+str(xsector)+str(xcoord)+str(ysector)+str(ycoord)+str(zsector)+str(zcoord)+str(bit_MCode)
+                                newid64 = int(newid64, 2)
+                                r_test = this.edsm_session.get('https://www.edsm.net/api-v1/system?systemId64=%s&showId=1' % newid64, timeout=10)
+                                r_test.raise_for_status()
+                                edsm_test = r_test.json()
+
+                                #print(namesector+" "+posID+"-"+str(n2-i))
+                                #print(edsm_test)
+                                if not 'name' in edsm_test:
+                                    #print(i, "UNK", namesector+" "+posID+"-"+str(i))
+                                    if not namesector+" "+posID+"-"+str(i) in this.edsm_nextsystem:
+                                        find = True
+                                        findradius = True
+                                        this.edsm_nextsystem.append(namesector+" "+posID+"-"+str(i))
+                                        print('NoEDSM : %s - %s - %s' % (len(this.edsm_nextsystem),newid64, namesector+" "+posID+"-"+str(i)))
+                                        this.frame.event_generate('<<NextData>>', when='tail')
+                                        #break
+                                
+                            #if find:
+                            #    break
+            if findradius and findNMSradius:
                 break
         #print(this.edsm_nextsystem)
 
