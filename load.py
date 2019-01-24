@@ -11,6 +11,7 @@ import urllib2
 import os
 
 import Tkinter as tk
+import ttk
 from ttkHyperlinkLabel import HyperlinkLabel
 import myNotebook as nb
 
@@ -20,7 +21,7 @@ if __debug__:
 from config import config
 from l10n import Locale
 
-VERSION = '0.1'
+VERSION = '0.2'
 
 this = sys.modules[__name__]	# For holding module globals
 this.frame = None
@@ -32,15 +33,54 @@ this.edsm_nextsystem = []
 this.edsm_testsystem = []
 this.iNMSnext = 0
 this.edsm_nextNMSsystem = []
+this.iNBCnext = 0
+this.edsm_nextNBCsystem = []
 this.maxbodyId = 0
 this.bodies = defaultdict(list)
 this.nbodies_null = []
 this.nbodies = 0
 this.nbodies_dscan = 0
-this.nbodies_timestamp = ''
-this.nbodies_prev = 0
 this.nbodies_edsm = []
 this.isMainStar = False
+this.lock = True
+this.lock_systemName = None
+
+this.edsm_nosystem = []
+this.edsm_nosystem.append('Andbephi')
+this.edsm_nosystem.append('CM Draconis')
+this.edsm_nosystem.append('NLTT 18977')
+this.edsm_nosystem.append('LP 123-75')
+this.edsm_nosystem.append('LP 366-45')
+this.edsm_nosystem.append('MCC 515')
+this.edsm_nosystem.append('Ross 620')
+
+this.edsm_notexist = []
+this.edsm_notexist.append('Synuefai BB-L d9-24')
+this.edsm_notexist.append('Synuefai NN-S e4-49')
+this.edsm_notexist.append('Synuefai HC-J d10-25')
+this.edsm_notexist.append('Synuefai AB-L d9-32')
+this.edsm_notexist.append('Wregoe YC-L b49-3')
+this.edsm_notexist.append('Wregoe BY-K b49-4')
+this.edsm_notexist.append('Wregoe BY-K b49-6')
+this.edsm_notexist.append('Wregoe BY-K b49-8')
+this.edsm_notexist.append('Wregoe BY-K b49-10')
+this.edsm_notexist.append('Wregoe DJ-J b50-1')
+this.edsm_notexist.append('Wregoe YI-G c24-13')
+this.edsm_notexist.append('Wregoe YI-G c24-18')
+this.edsm_notexist.append('Wregoe YI-G c24-21')
+this.edsm_notexist.append('Wregoe CP-E c25-17')
+this.edsm_notexist.append('Wregoe CP-E c25-18')
+this.edsm_notexist.append('Wregoe AC-D d12-9')
+this.edsm_notexist.append('Wregoe AC-D d12-62')
+this.edsm_notexist.append('Wregoe YG-D d12-33')
+this.edsm_notexist.append('Wregoe YG-D d12-52')
+this.edsm_notexist.append('Wregoe YG-D d12-56')
+
+
+
+
+
+
 
 def plugin_start():
     # App isn't initialised at this point so can't do anything interesting
@@ -53,6 +93,7 @@ def plugin_app(parent):
     this.frame.bind('<<EDSMData>>', edsm_data)	# callback when EDSM data received
     this.frame.bind('<<NextData>>', next_data)	# callback when EDSM data received
     this.frame.bind('<<NextNMSData>>', next_NMSdata)	# callback when EDSM data received
+    this.frame.bind('<<NextNBCData>>', next_NBCdata)	# callback when EDSM data received
     this.edsm_label = tk.Label(this.frame, text = 'Body Scanned:')
     this.edsm = tk.Label(this.frame)
     this.edsmnext_label = tk.Label(this.frame, text = 'Next NoEDSM: [0]')
@@ -61,7 +102,12 @@ def plugin_app(parent):
     this.edsmNMSnext_label = tk.Label(this.frame, text = 'Next NoMainStar: [0]')
     this.edsmNMSnext = HyperlinkLabel(this.frame)
     this.edsmNMSnext.bind("<Button-1>", NMScopy_to_clipboard)
+    this.edsmNBCnext_label = tk.Label(this.frame, text = 'Next NoBodyCount: [0]')
+    this.edsmNBCnext = HyperlinkLabel(this.frame)
+    this.edsmNBCnext.bind("<Button-1>", NBCcopy_to_clipboard)
     this.spacer = tk.Frame(this.frame)	# Main frame can't be empty or it doesn't resize
+    this.button = ttk.Button(frame, text='Status = Locked', width=28, default=tk.ACTIVE)
+    this.button.bind("<Button-1>", Switch_Lock)
     update_visibility()
     return this.frame
 
@@ -78,14 +124,8 @@ def prefs_changed(cmdr, is_beta):
 
 def journal_entry(cmdr, is_beta, system, station, entry, state):
 
-    if entry['event'] == 'DiscoveryScan':
-        if this.nbodies_timestamp == entry['timestamp']:
-            if entry['Bodies']>this.nbodies_prev:
-                this.nbodies_dscan = this.nbodies_dscan + entry['Bodies'] - this.nbodies_prev
-        else:
-            this.nbodies_dscan = this.nbodies_dscan + entry['Bodies']
-        this.nbodies_prev = entry['Bodies']
-        this.nbodies_timestamp = entry['timestamp']
+    if entry['event'] == 'FSSDiscoveryScan':
+        this.nbodies_dscan = entry['BodyCount']
         this.edsm['text'] = str(len(this.nbodies_edsm))+("*" if this.isMainStar else "")+' / '+str(this.nbodies)+' / '+str(this.nbodies_dscan)
     
     if entry['event'] == 'Scan':
@@ -113,32 +153,35 @@ def journal_entry(cmdr, is_beta, system, station, entry, state):
     #print(entry)
     #print(entry['event'] == 'FSDJump', entry['event'] in ['Location', 'FSDJump'])
     if entry['event'] in ['Location', 'FSDJump', 'StartUp']:
-        this.inext = 0
-        this.edsm_nextsystem = []
-        this.edsm_testsystem = []
-        this.iNMSnext = 0
-        this.edsm_nextNMSsystem = []
+        if not this.lock:
+            this.inext = 0
+            this.edsm_nextsystem = []
+            this.edsm_testsystem = []
+            this.iNMSnext = 0
+            this.edsm_nextNMSsystem = []
+            this.iNBCnext = 0
+            this.edsm_nextNBCsystem = []
+            this.lock_systemName = entry['StarSystem']
+            
         this.maxbodyId = 0
         this.bodies = defaultdict(list)
         this.nbodies_null = []
         this.nbodies = 0
         this.nbodies_dscan = 0
-        this.nbodies_timestamp = ''
-        this.nbodies_prev = 0
         this.nbodies_edsm = []
         this.systemName = entry['StarSystem']
         this.isMainStar = False
-        
+    
         thread = threading.Thread(target = edsm_worker, name = 'EDSM worker', args = (this.systemName,int(entry['SystemAddress']),))
         thread.daemon = True
         thread.start()
 
 
-def cmdr_data(data, is_beta):
+#def cmdr_data(data, is_beta):
     # Manual Update
-    thread = threading.Thread(target = edsm_worker, name = 'EDSM worker', args = (data['lastSystem']['name'],None))
-    thread.daemon = True
-    thread.start()
+#    thread = threading.Thread(target = edsm_worker, name = 'EDSM worker', args = (data['lastSystem']['name'],None))
+#    thread.daemon = True
+#    thread.start()
 
 # EDSM lookup
 def edsm_worker(systemName, id64_dec):
@@ -155,6 +198,8 @@ def edsm_worker(systemName, id64_dec):
 
     this.frame.event_generate('<<EDSMData>>', when='tail')
 
+    if this.lock:
+        return
 
     #bodyId,bit_n2,xsector,xcoord,ysector,ycoord,zsector,zcoord,bit_MCode = id64_splitbin("{0:064b}".format(1831560284547))
     #print('test=',bodyId,bit_n2,xsector,xcoord,ysector,ycoord,zsector,zcoord,bit_MCode)
@@ -178,6 +223,8 @@ def edsm_worker(systemName, id64_dec):
             if(n2==i):
                 #print(namesector+" "+posID+"-"+str(i))
                 this.edsm_testsystem.append(namesector+" "+posID+"-"+str(i))
+                continue
+            if namesector+" "+posID+"-"+str(i) in this.edsm_notexist:
                 continue
             #print(namesector,posID,i)
             newid64 = str(bodyId)+str(newn2)+str(xsector)+str(xcoord)+str(ysector)+str(ycoord)+str(zsector)+str(zcoord)+str(bit_MCode)
@@ -204,6 +251,7 @@ def edsm_worker(systemName, id64_dec):
         radius = 20
         findradius = False
         findNMSradius = False
+        findNBCradius = False
         
         for rmax in range(4):
             #print("radius=",radius)
@@ -213,15 +261,28 @@ def edsm_worker(systemName, id64_dec):
             minradius = radius
             radius += stepradius
 
+            if not findNBCradius:
+                for edsm_system in edsm_sphere:
+                    #print('bodyCount = ',edsm_system['bodyCount'])
+                    if(edsm_system['bodyCount'] is None and edsm_system['distance']!=0 and edsm_system['name']!=systemName):
+                        if not edsm_system['name'] in this.edsm_nextNBCsystem:
+                            if not edsm_system['name'] in this.edsm_nosystem:
+                                findNBCradius = True
+                                this.edsm_nextNBCsystem.append(edsm_system['name'])
+                                #print("EDSM :",edsm_system['name'])
+                                print('NoBodyCount : %s - %s' % (len(this.edsm_nextNBCsystem), edsm_system['name']))
+                                this.frame.event_generate('<<NextNBCData>>', when='tail')
+                                
             if not findNMSradius:
                 for edsm_system in edsm_sphere:
                     if(edsm_system['primaryStar'] is None and edsm_system['distance']!=0 and edsm_system['name']!=systemName):
                         if not edsm_system['name'] in this.edsm_nextNMSsystem:
-                            findNMSradius = True
-                            this.edsm_nextNMSsystem.append(edsm_system['name'])
-                            #print("EDSM :",edsm_system['name'])
-                            print('NoMainStar : %s - %s' % (len(this.edsm_nextNMSsystem), edsm_system['name']))
-                            this.frame.event_generate('<<NextNMSData>>', when='tail')
+                            if not edsm_system['name'] in this.edsm_nosystem:
+                                findNMSradius = True
+                                this.edsm_nextNMSsystem.append(edsm_system['name'])
+                                #print("EDSM :",edsm_system['name'])
+                                print('NoMainStar : %s - %s' % (len(this.edsm_nextNMSsystem), edsm_system['name']))
+                                this.frame.event_generate('<<NextNMSData>>', when='tail')
 
             if not findradius:
                 for k in range(8):
@@ -247,6 +308,8 @@ def edsm_worker(systemName, id64_dec):
                             #print(namesector,posID,n2)
                             
                             for i in range(0,n2):
+                                if namesector+" "+posID+"-"+str(i) in this.edsm_notexist:
+                                    continue
                                 if(not namesector+" "+posID+"-"+str(i) in this.edsm_testsystem):
                                     this.edsm_testsystem.append(namesector+" "+posID+"-"+str(i))
                                 else:
@@ -273,7 +336,7 @@ def edsm_worker(systemName, id64_dec):
                                 
                             #if find:
                             #    break
-            if findradius and findNMSradius:
+            if findradius and findNMSradius and findNBCradius:
                 break
         #print(this.edsm_nextsystem)
 
@@ -325,6 +388,12 @@ def next_NMSdata(event):
     this.edsmNMSnext['text'] = this.edsm_nextNMSsystem[this.iNMSnext]
     this.edsmNMSnext['url'] = this.edsm_nextNMSsystem[this.iNMSnext]
 
+def next_NBCdata(event):
+    #print(this.edsm_nextsystem)
+    this.edsmNBCnext_label['text'] = 'Next NoBodyCount: ['+str(this.iNBCnext+1)+'/'+str(len(this.edsm_nextNBCsystem))+']'
+    this.edsmNBCnext['text'] = this.edsm_nextNBCsystem[this.iNBCnext]
+    this.edsmNBCnext['url'] = this.edsm_nextNBCsystem[this.iNBCnext]
+
 def update_visibility():
     row = 1
     this.edsm_label.grid(row = row, column = 0, sticky=tk.W)
@@ -333,8 +402,13 @@ def update_visibility():
     this.edsmNMSnext_label.grid(row = row, column = 0, sticky=tk.W)
     this.edsmNMSnext.grid(row = row, column = 1, columnspan=5, sticky=tk.W)
     row += 1
+    this.edsmNBCnext_label.grid(row = row, column = 0, sticky=tk.W)
+    this.edsmNBCnext.grid(row = row, column = 1, columnspan=5, sticky=tk.W)
+    row += 1
     this.edsmnext_label.grid(row = row, column = 0, sticky=tk.W)
     this.edsmnext.grid(row = row, column = 1, columnspan=5, sticky=tk.W)
+    row += 1
+    this.button.grid(row = row, columnspan=6, sticky=tk.NSEW)
     this.spacer.grid(row = 0)
 
 def copy_to_clipboard(event):
@@ -364,6 +438,31 @@ def NMScopy_to_clipboard(event):
     this.edsmNMSnext_label['text'] = 'Next NoMainStar: ['+str(this.iNMSnext+1)+'/'+str(len(this.edsm_nextNMSsystem))+']'
     this.edsmNMSnext['text'] = this.edsm_nextNMSsystem[this.iNMSnext]
     this.edsmNMSnext['url'] = this.edsm_nextNMSsystem[this.iNMSnext]
+
+def NBCcopy_to_clipboard(event):
+    window=tk.Tk()
+    window.withdraw()
+    window.clipboard_clear()  # clear clipboard contents
+    window.clipboard_append(this.edsm_nextNBCsystem[this.iNBCnext])
+    window.destroy()
+
+    this.iNBCnext += 1
+    if this.iNBCnext >= len(this.edsm_nextNBCsystem):
+        this.iNBCnext=0
+    this.edsmNBCnext_label['text'] = 'Next NoBodyCount: ['+str(this.iNBCnext+1)+'/'+str(len(this.edsm_nextNBCsystem))+']'
+    this.edsmNBCnext['text'] = this.edsm_nextNBCsystem[this.iNBCnext]
+    this.edsmNBCnext['url'] = this.edsm_nextNBCsystem[this.iNBCnext]
+
+def Switch_Lock(event):
+    if this.lock:
+        this.lock = False
+        this.button['text'] = 'Status = Unlocked'
+    else:
+        this.lock = True
+        if this.lock_systemName is None:
+            this.button['text'] = 'Status = Locked'
+        else:
+            this.button['text'] = 'Status = Locked '+'('+str(this.lock_systemName)+')'
     
 def id64_splitbin(id64):
 
